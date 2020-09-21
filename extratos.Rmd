@@ -228,7 +228,7 @@ extratos_relatorios<-reactive(extratos()%>%
     
 
 
-Row 
+Row {data-height=50}
 -------------------------------------
 
 
@@ -253,149 +253,6 @@ url_api <- reactive(extrato()%>%
 
 ```
 
-### teste
-```{r}
-flexdashboard::renderValueBox({
-  
-    valor <-  100
-    valueBox(
-    # utilizar funções divisor() e escala () para converter automaticamente valores para milhar, milhão, bilhão...  
-    valor,
-    # lembrar de ajustar manualamente os períodos. Pensei em criar um slider para definir os períodos, mas talvez o slider dificultasse a compreensão do usuário do dashboard
-    "junho 2019",
-    color = "grey"
-      
-    )
-  })
-
-```
-
-
-### teste
-```{r}
-flexdashboard::renderValueBox({
-  
-    valor <-  100
-    valueBox(
-    # utilizar funções divisor() e escala () para converter automaticamente valores para milhar, milhão, bilhão...  
-    valor,
-    # lembrar de ajustar manualamente os períodos. Pensei em criar um slider para definir os períodos, mas talvez o slider dificultasse a compreensão do usuário do dashboard
-    "junho 2019",
-    color = "grey"
-      
-    )
-  })
-
-```
-
-
-
-### teste
-```{r}
-flexdashboard::renderValueBox({
-  
-    valor <-  100
-    valueBox(
-    # utilizar funções divisor() e escala () para converter automaticamente valores para milhar, milhão, bilhão...  
-    valor,
-    # lembrar de ajustar manualamente os períodos. Pensei em criar um slider para definir os períodos, mas talvez o slider dificultasse a compreensão do usuário do dashboard
-    "junho 2019",
-    color = "grey"
-      
-    )
-  })
-
-```
-
-
-
-### teste
-```{r}
-flexdashboard::renderValueBox({
-  
-    valor <-  100
-    valueBox(
-    # utilizar funções divisor() e escala () para converter automaticamente valores para milhar, milhão, bilhão...  
-    valor,
-    # lembrar de ajustar manualamente os períodos. Pensei em criar um slider para definir os períodos, mas talvez o slider dificultasse a compreensão do usuário do dashboard
-    "junho 2019",
-    color = "grey"
-      
-    )
-  })
-
-```
-
-
-
-### Limite Pessoal
-```{r}
-
-
-
-
-flexdashboard::renderValueBox({
-   valor_rcl <-  relatorios(rgf_recente()$url_api) %>% filter( co_poder == "E",anexo == "RGF-Anexo 06",  cod_conta == "ReceitaCorrenteLiquida") %>% summarise(valor = (valor))
-   
-    valor_pessoal <-   relatorios(rgf_recente()$url_api) %>% filter(co_poder == "E", conta == "Despesa Total com Pessoal - DTP", startsWith( coluna , "V")) %>% summarise(valor = sum(valor))
-      
-  
-    # valor_rcl <-  if_else(rgf_recente()$instituicao == "Governo Federal",
-    #                       relatorios(rgf_recente()$url_api) %>% filter( anexo ==  "RGF-Anexo 06",rotulo == "PODER EXECUTIVO", conta == "Receita Corrente Líquida") %>% summarise(valor = (valor)) ,
-    #                       relatorios(rgf_recente()$url_api) %>% filter( cod_conta == "ReceitaCorrenteLiquidaAjustada", coluna == "Valor") %>% summarise(valor = (valor)))
-    # valor_pessoal <- if_else(rgf_recente()$instituicao == "Governo Federal",
-    #                          relatorios(rgf_recente()$url_api) %>% filter( anexo ==  "RGF-Anexo 06", rotulo == "PODER EXECUTIVO", coluna == "Valor", conta == "Despesa Total com Pessoal - DTP") %>% summarise(valor = (valor)),
-    #                          relatorios(rgf_recente()$url_api) %>% filter( cod_conta == "DespesaComPessoalTotal", coluna == "Valor") %>% summarise(valor = (valor)))
-    valueBox(
-    # utilizar funções divisor() e escala () para converter automaticamente valores para milhar, milhão, bilhão...  
-    valor_pessoal/valor_rcl,
-    # lembrar de ajustar manualamente os períodos. Pensei em criar um slider para definir os períodos, mas talvez o slider dificultasse a compreensão do usuário do dashboard
-    rgf_recente()$fechamento,
-    color = "grey"
-      
-    )
-  })
-
-```
-
-
-### RCL
-```{r}
-flexdashboard::renderValueBox({
-  
-    valor <-  relatorios(rreo()$url_api) %>% filter( startsWith(conta, "RECEITA CORRENTE LÍQUIDA"), startsWith(coluna, "TOTAL"), endsWith(cod_conta, "ReceitaCorrenteLiquida")) %>% summarise(valor = valor)
-    valueBox(
-    # utilizar funções divisor() e escala () para converter automaticamente valores para milhar, milhão, bilhão...  
-    paste0("R$ ", divisor(valor)," ",  escala(valor)),
-    # lembrar de ajustar manualamente os períodos. Pensei em criar um slider para definir os períodos, mas talvez o slider dificultasse a compreensão do usuário do dashboard
-    rreo()$fechamento,
-    color = "grey"
-      
-    )
-  })
-
-```
-
-
-
-### teste
-```{r}
-valor <-  reactive(url_api() %>%  filter (tipo == "RGF"  ))
-
-flexdashboard::renderValueBox({
-
-    # valor <-  url_api() %>%  filter (tipo == "DCA", exercicio == (as.integer(format(Sys.Date(), "%Y"))-1)) %>% summarise(periodo = data_status)
-    valueBox(
-    # utilizar funções divisor() e escala () para converter automaticamente valores para milhar, milhão, bilhão...
-    max(valor()$fechamento),
-    # lembrar de ajustar manualamente os períodos. Pensei em criar um slider para definir os períodos, mas talvez o slider dificultasse a compreensão do usuário do dashboard
-    "junho 2019",
-    color = "grey"
-
-    )
-  })
-
-```
 
 
 Row {.tabset .tabset-fade}
@@ -408,7 +265,7 @@ Row {.tabset .tabset-fade}
 
 dataTableOutput('filtro')
 
-output$filtro <- renderDataTable(url_api(),filter = 'top', server = TRUE)
+output$filtro <- renderDataTable(url_api() %>% arrange(desc(fechamento)) %>% select(-dia,- cod_ibge,-tipo,-poder,-forma_envio, -mes, -tipo_relatorio),filter = 'top', server = TRUE)
 
 
 ```
@@ -510,7 +367,7 @@ arq
 
 
 
-### 4) RREO
+
 
 ```{r}
 

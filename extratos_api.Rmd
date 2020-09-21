@@ -3,10 +3,8 @@
 ---
 title: "extratos"
 output:
-  output_dir: docs
   flexdashboard::flex_dashboard:
     orientation: rows
-    source_code: https://github.com/andreferraribr
     social: [ "twitter", "facebook", "menu" ]
     
 runtime: shiny    
@@ -45,7 +43,31 @@ library(tidyverse)
 ```
         
 
+```{r funcoes}
+# criar funções para apresentar a unidade de medida e converter automaticamente para milhares, milhões, bilhões e trilhões
+escala <- function(x){case_when(
+  abs(x) < 1000 ~ "",
+  abs(x) >= 1000  & abs(x) < 1000000 ~ "K",
+  abs(x) >= 1000000  & abs(x) < 1000000000 ~ "Mi",
+  abs(x) >= 1000000000  & abs(x) < 1000000000000 ~ "Bi",
+  abs(x) >= 1000000000000  & abs(x) < 1000000000000000 ~ "trilhão",
+  TRUE ~ "maior que trilhão"
+)}
+ escala <- Vectorize(escala)
+divisor <- function(x){case_when(
+  abs(x) < 1000 ~ x,
+  abs(x) >= 1000  & abs(x) < 1000000 ~ round(x/1000,digits = 2),
+  abs(x) >= 1000000  & abs(x) < 1000000000 ~ round(x/1000000, digits = 2),
+  abs(x) >= 1000000000  & abs(x) < 1000000000000 ~ round (x/1000000000, digits = 2),
+  abs(x) >= 1000000000000  & abs(x) < 1000000000000000 ~ round (x/1000000000000, digits = 2),
+  TRUE ~ x
+)}
+ divisor <- Vectorize(divisor)
+```
 
+```{r}
+'%!in%' <- Negate('%in%')
+```
 
 
 
@@ -110,34 +132,11 @@ entes <- read_csv("entes.csv") %>%  mutate(esfera_nome =  case_when(
   TRUE ~ ente))
 
 
-periodo <- (2015:as.integer(format(Sys.Date(), "%Y")))
-
-
-# 
-# %>%  mutate(ente_uf =  case_when(
-#   esfera == "M" ~ paste0(ente," município ",uf),
-#   esfera == "U" ~ paste0(ente,"-","Brasil"),
-#   esfera %in% c("E","D") ~ paste0(ente,"-","Estado/DF")))
-
 
 
 
 ```
 
-
-
-  
-```{r include=FALSE}
-
-# periodo <- (2015:as.integer(format(Sys.Date(), "%Y")))
-
-# https://stackoverflow.com/questions/30472625/r-shiny-how-to-get-current-year-with-sys-date
- # sliderInput ("ano", "período", min = 2015, max = max(periodo), value = c(min(periodo), max(periodo)), step = 1)
-```
-
-
-
-    
 
 
 
@@ -147,60 +146,6 @@ periodo <- (2015:as.integer(format(Sys.Date(), "%Y")))
 
 cod_ibge <- reactive(entes %>% filter(esfera_nome == input$esfera_nome) )
 
-# DTOutput("ente")
-# 
-# output$ente <- renderDT({datatable(cod_ibge())})
-
-# output$extratos <- renderDT({datatable(entes %>% filter(esfera_nome == input$esfera_nome))})
-
-
-
-
-
-# 
-# 
-# # tornar amigavel a df extratos
-# extratos<- extratos()%>%
-#   mutate (data = as.Date (data_status))
-# # adicionar variável "tipo" (nome reduzido do entregavel) 
-# extratos<- extratos%>%
-#   mutate (tipo =case_when(
-#  entregavel == "Balanço Anual (DCA)" ~ "DCA", 
-#  entregavel == "MSC Agregada" ~ "MSCC",
-#  entregavel == "MSC Encerramento" ~ "MSCE",
-#  entregavel == "Relatório de Gestão Fiscal" ~ "RGF",
-#  entregavel == "Relatório de Gestão Fiscal Simplificado" ~ "RGF Simplificado",
-#  entregavel == "Relatório Resumido de Execução Orçamentária" ~ "RREO",
-#  entregavel == "Relatório Resumido de Execução Orçamentária Simplificado" ~ "RREO Simplificado"
-# ))
-# # adicionar variável "poder" (L/legislativo, E/executivo, J/Judiciário...)
-# extratos<-extratos%>%
-#   mutate (poder = case_when(
-#     str_detect(instituicao,'Assembleia Legislativa') ~ "L",
-#     str_detect(instituicao,'Câmara de Vereadores') ~ "L",
-#     str_detect(instituicao,'Senado Federal') ~ "L",
-#     str_detect(instituicao,'Câmara dos Deputados') ~ "L",
-#     str_detect(instituicao,'Câmara Legislativa') ~ "L",
-#     str_detect(instituicao,'Prefeitura Municipal') ~ "E",
-#     str_detect(instituicao,'Governo do') ~ "E",
-#     str_detect(instituicao,'Governo Federal') ~ "E",
-#     str_detect(instituicao,'Tribunal') ~ "J",
-#     str_detect(instituicao,'Conselho da Justiça Federal') ~ "J",
-#     str_detect(instituicao,'Conselho Nacional de Justiça') ~ "J",
-#     str_detect(instituicao,'Ministério Público') ~ "M",
-#     str_detect(instituicao,'Defensoria') ~ "D",
-#     str_detect(instituicao,'CONSÓRCIO') ~ "C",
-#     str_detect(instituicao,'CONSORCIO') ~ "C",
-#     str_detect(instituicao,'Consórcio') ~ "C",
-#     TRUE ~ "O"
-#   ))
-# 
-# 
-
-
-
-
-
 
 ```
   
@@ -208,9 +153,11 @@ cod_ibge <- reactive(entes %>% filter(esfera_nome == input$esfera_nome) )
 
 ```{r}
 
+urls <- reactive (for (i in periodo){
+  urls <- paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/extrato_entregas?id_ente=",cod_ibge()$cod_ibge,"&an_referencia=",toString(i) )})
 
-
-extrato <- reactive(extrato <-  json2df( paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/extrato_entregas?id_ente=",cod_ibge()$cod_ibge,"&an_referencia=2020" )) %>%
+# extrato <- reactive(extrato <-  json2df( paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/extrato_entregas?id_ente=",cod_ibge()$cod_ibge,"&an_referencia=2020" )) %>%
+extrato <- reactive(extrato <- relatorios (lista_extratos()) %>%                      
   mutate (tipo =case_when(
  entregavel == "Balanço Anual (DCA)" ~ "DCA",
  entregavel == "MSC Agregada" ~ "MSCC",
@@ -237,66 +184,26 @@ extrato <- reactive(extrato <-  json2df( paste0("http://apidatalake.tesouro.gov.
     str_detect(instituicao,'CONSORCIO') ~ "C",
     str_detect(instituicao,'Consórcio') ~ "C",
     TRUE ~ "O"
-  ))
+  )) %>% 
+   mutate (mes = case_when(
+     periodicidade == "M" ~ periodo * 1,
+     periodicidade == "B" ~ periodo * 2,
+     periodicidade == "Q" ~ periodo * 4,
+     periodicidade == "S" ~ periodo * 6,
+     periodicidade == "A" ~ periodo * 12,
+   )) %>% 
+   mutate(fechamento = as_date(paste0(exercicio,"-",mes,"-01"))) %>% 
+   mutate(dia = days_in_month(fechamento) ) %>% 
+   mutate (fechamento = as_date(paste0(exercicio,"-",mes,"-",dia)))
+ 
+   
 )
 
 
-extratos <- c()
-periodo <- (2015:as.integer(format(Sys.Date(), "%Y")))
-
-# extratos <-  for (i in (periodo))
-# 
-# {extrato <- json2df( paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/extrato_entregas?id_ente=","4205407","&an_referencia=",as.character(i) ))} 
-#   
-# {extrato <- json2df( paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/extrato_entregas?id_ente=",cod_ibge()$cod_ibge,"&an_referencia=",as.character(i) ))}})
-
-
-  
-# DTOutput("extratos")
-# 
-# output$extratos <- renderDT({datatable(extrato())})
-# 
-# {extrato <- json2df( paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/extrato_entregas?id_ente=","4205407","&an_referencia=",as.character(i) ))} )})
-```
-
-
-Row {data-height=300}
--------------------------------------
-
-### url_api
-
-```{r}
-
-selectInput("esfera_nome", "ente:", choices=entes$esfera_nome, selected = "município de Florianópolis-SC")
-
-url_api <- reactive(extrato()%>%
-  filter(tipo != ("MSCC"),tipo != ("MSCE") )%>%
- mutate (url_api =case_when(
- tipo == "DCA" ~ paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/dca?an_exercicio=",exercicio,"&id_ente=",cod_ibge), 
- tipo == "MSCA" ~ "MSCA",
- tipo == "MSCE" ~ "MSCE",
- tipo == "RGF" ~ paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/rgf?an_exercicio=",exercicio,"&in_periodicidade=",periodicidade,"&nr_periodo=",periodo,"&co_tipo_demonstrativo=RGF&co_poder=",poder,"&id_ente=",cod_ibge),
- tipo == "RGF Simplificado" ~ paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/rgf?an_exercicio=",exercicio,"&in_periodicidade=",periodicidade,"&nr_periodo=",periodo,"&co_tipo_demonstrativo=RGF%20Simplificado&co_poder=",poder,"&id_ente=",cod_ibge),
- tipo == "RREO" ~ paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/rreo?an_exercicio=",exercicio,"&nr_periodo=",periodo,"&co_tipo_demonstrativo=RREO&id_ente=",cod_ibge),
- tipo == "RREO Simplificado" ~ paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/rreo?an_exercicio=",exercicio,"&nr_periodo=",periodo,"&co_tipo_demonstrativo=RREO%20Simplificado&id_ente=",cod_ibge)
- 
-) ))  
-
-
-
-
-
-
-
-DTOutput("url_api")
-
-output$url_api <- renderDT({datatable(url_api())})
-
-
-
-
 
 ```
+
+
 
 
 
@@ -321,35 +228,241 @@ extratos_relatorios<-reactive(extratos()%>%
     
 
 
-Row {.tabset .tabset-fade}
+Row 
 -------------------------------------
-    
-### Download
+
 
 ```{r}
-# https://shiny.rstudio.com/reference/shiny/0.14/downloadHandler.html
+selectInput("esfera_nome", "   Selecione o ente:", choices=entes$esfera_nome, selected = "município de Florianópolis-SC")
 
 
-# rgf_url<-extratos()%>%
-#   filter(  tipo == "RGF")
-#   rgf <- relatorios(url_api()$url_api)
+
+
+url_api <- reactive(extrato()%>%
+  filter(tipo != ("MSCC"),tipo != ("MSCE") )%>%
+ mutate (url_api =case_when(
+ tipo == "DCA" ~ paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/dca?an_exercicio=",exercicio,"&id_ente=",cod_ibge), 
+ tipo == "MSCA" ~ "MSCA",
+ tipo == "MSCE" ~ "MSCE",
+ tipo == "RGF" ~ paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/rgf?an_exercicio=",exercicio,"&in_periodicidade=",periodicidade,"&nr_periodo=",periodo,"&co_tipo_demonstrativo=RGF&co_poder=",poder,"&id_ente=",cod_ibge),
+ tipo == "RGF Simplificado" ~ paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/rgf?an_exercicio=",exercicio,"&in_periodicidade=",periodicidade,"&nr_periodo=",periodo,"&co_tipo_demonstrativo=RGF%20Simplificado&co_poder=",poder,"&id_ente=",cod_ibge),
+ tipo == "RREO" ~ paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/rreo?an_exercicio=",exercicio,"&nr_periodo=",periodo,"&co_tipo_demonstrativo=RREO&id_ente=",cod_ibge),
+ tipo == "RREO Simplificado" ~ paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/rreo?an_exercicio=",exercicio,"&nr_periodo=",periodo,"&co_tipo_demonstrativo=RREO%20Simplificado&id_ente=",cod_ibge)
+ 
+) ))  
+
+```
+
+### teste
+```{r}
+flexdashboard::renderValueBox({
   
+    valor <-  100
+    valueBox(
+    # utilizar funções divisor() e escala () para converter automaticamente valores para milhar, milhão, bilhão...  
+    valor,
+    # lembrar de ajustar manualamente os períodos. Pensei em criar um slider para definir os períodos, mas talvez o slider dificultasse a compreensão do usuário do dashboard
+    "junho 2019",
+    color = "grey"
+      
+    )
+  })
 
-# actionButton("go", "Clique para acessar os dados do SICONFI")
-# 
-#  # downloadLink("downloadData", "Download")
-# 
-# dados <- eventReactive(input$go,  relatorios(url_api()$url_api))
-# 
-# 
-# DTOutput("dados")
-#  
-# 
-# output$dados <- renderDT({datatable(dados())})
+```
+
+
+### teste
+```{r}
+flexdashboard::renderValueBox({
+  
+    valor <-  100
+    valueBox(
+    # utilizar funções divisor() e escala () para converter automaticamente valores para milhar, milhão, bilhão...  
+    valor,
+    # lembrar de ajustar manualamente os períodos. Pensei em criar um slider para definir os períodos, mas talvez o slider dificultasse a compreensão do usuário do dashboard
+    "junho 2019",
+    color = "grey"
+      
+    )
+  })
+
+```
 
 
 
- downloadLink("downloadData", "Espere carregar a tabela e depois inicie o Download")
+### teste
+```{r}
+flexdashboard::renderValueBox({
+  
+    valor <-  100
+    valueBox(
+    # utilizar funções divisor() e escala () para converter automaticamente valores para milhar, milhão, bilhão...  
+    valor,
+    # lembrar de ajustar manualamente os períodos. Pensei em criar um slider para definir os períodos, mas talvez o slider dificultasse a compreensão do usuário do dashboard
+    "junho 2019",
+    color = "grey"
+      
+    )
+  })
+
+```
+
+
+
+### teste
+```{r}
+flexdashboard::renderValueBox({
+  
+    valor <-  100
+    valueBox(
+    # utilizar funções divisor() e escala () para converter automaticamente valores para milhar, milhão, bilhão...  
+    valor,
+    # lembrar de ajustar manualamente os períodos. Pensei em criar um slider para definir os períodos, mas talvez o slider dificultasse a compreensão do usuário do dashboard
+    "junho 2019",
+    color = "grey"
+      
+    )
+  })
+
+```
+
+
+
+### Limite Pessoal
+```{r}
+
+
+
+
+flexdashboard::renderValueBox({
+   # valor_rcl <-  relatorios(rgf_recente()$url_api) %>% filter( co_poder == "E",anexo == "RGF-Anexo 06",  cod_conta == "ReceitaCorrenteLiquida") %>% summarise(valor = (valor))
+   
+    valor_pessoal <-   relatorios(rgf_recente()$url_api) %>% filter(co_poder == "E", cod_conta == "DespesaTotalComPessoalDemonstrativoSimplificado") %>% summarise(valor = sum(valor))
+       # valor_pessoal <-   relatorios(rgf_recente()$url_api) %>% filter(co_poder == "E", conta == "Despesa Total com Pessoal - DTP", startsWith( coluna , "V"), endsWith(anexo, "06")) %>% summarise(valor = sum(valor))
+      
+  
+    # valor_rcl <-  if_else(rgf_recente()$instituicao == "Governo Federal",
+    #                       relatorios(rgf_recente()$url_api) %>% filter( anexo ==  "RGF-Anexo 06",rotulo == "PODER EXECUTIVO", conta == "Receita Corrente Líquida") %>% summarise(valor = (valor)) ,
+    #                       relatorios(rgf_recente()$url_api) %>% filter( cod_conta == "ReceitaCorrenteLiquidaAjustada", coluna == "Valor") %>% summarise(valor = (valor)))
+    # valor_pessoal <- if_else(rgf_recente()$instituicao == "Governo Federal",
+    #                          relatorios(rgf_recente()$url_api) %>% filter( anexo ==  "RGF-Anexo 06", rotulo == "PODER EXECUTIVO", coluna == "Valor", conta == "Despesa Total com Pessoal - DTP") %>% summarise(valor = (valor)),
+    #                          relatorios(rgf_recente()$url_api) %>% filter( cod_conta == "DespesaComPessoalTotal", coluna == "Valor") %>% summarise(valor = (valor)))
+    valueBox(
+    # utilizar funções divisor() e escala () para converter automaticamente valores para milhar, milhão, bilhão...  
+    valor_pessoal/valor_rcl,
+    # lembrar de ajustar manualamente os períodos. Pensei em criar um slider para definir os períodos, mas talvez o slider dificultasse a compreensão do usuário do dashboard
+    rgf_recente()$fechamento,
+    color = "grey"
+      
+    )
+  })
+
+```
+
+
+### RCL
+```{r}
+flexdashboard::renderValueBox({
+  
+    valor <-  relatorios(rreo_recente()$url_api) %>% filter( cod_conta == "ReceitaCorrenteLiquidaDemonstrativoSimplificado") %>% summarise(valor = valor)
+     # valor <-  relatorios(rreo()$url_api) %>% filter( startsWith(conta, "RECEITA CORRENTE LÍQUIDA"), startsWith(coluna, "TOTAL"), endsWith(cod_conta, "ReceitaCorrenteLiquida")) %>% summarise(valor = valor)
+    valueBox(
+    # utilizar funções divisor() e escala () para converter automaticamente valores para milhar, milhão, bilhão...  
+    paste0("R$ ", divisor(valor)," ",  escala(valor)),
+    # lembrar de ajustar manualamente os períodos. Pensei em criar um slider para definir os períodos, mas talvez o slider dificultasse a compreensão do usuário do dashboard
+    rreo_recente()$fechamento,
+    color = "grey"
+      
+    )
+  })
+
+```
+
+
+
+### teste
+```{r}
+valor <-  reactive(url_api() %>%  filter (tipo == "RGF"  ))
+
+flexdashboard::renderValueBox({
+
+    # valor <-  url_api() %>%  filter (tipo == "DCA", exercicio == (as.integer(format(Sys.Date(), "%Y"))-1)) %>% summarise(periodo = data_status)
+    valueBox(
+    # utilizar funções divisor() e escala () para converter automaticamente valores para milhar, milhão, bilhão...
+    max(valor()$fechamento),
+    # lembrar de ajustar manualamente os períodos. Pensei em criar um slider para definir os períodos, mas talvez o slider dificultasse a compreensão do usuário do dashboard
+    "junho 2019",
+    color = "grey"
+
+    )
+  })
+
+```
+
+
+Row {.tabset .tabset-fade}
+-----------------------------------------------------------------------
+
+
+### 1) Clique para selecionar os relatórios desejados
+
+```{r}
+
+dataTableOutput('filtro')
+
+output$filtro <- renderDataTable(url_api(),filter = 'top', server = TRUE)
+
+
+```
+
+
+
+
+```{r}
+
+dados_2 <- reactive(relatorios(teste_url()$url_api))
+
+```
+
+
+
+### 2) Aguarde até visualizar a prévia dos dados
+
+```{r}
+
+DTOutput("dados_2")
+ 
+
+output$dados_2 <-  renderDT({
+                              s = input$filtro_rows_selected
+                              if (length(s)) {
+                              datatable(dados_2(),filter = 'top')%>%
+                  formatRound("valor",
+                      digits = 2,
+                      interval = 3,
+                      mark = ".",
+                      dec.mark = ",")}})
+
+```
+
+
+```{r}
+
+#  https://yihui.shinyapps.io/DT-rows/
+
+# dataTableOutput('url_teste')
+# 
+# output$url_teste <- renderDataTable(url_api() %>% select(url_api) %>% slice (input$filtro_rows_selected) , server = TRUE)
+
+teste_url <- reactive (url_api() %>% select(url_api) %>% slice (input$filtro_rows_selected))
+
+```
+
+### 3) Faça o download dos relatórios selecionados na etapa 1
+
+```{r}
+
+ downloadLink("downloadData", "Faça o download dos relatórios selecionados na etapa 1")
 
 
 
@@ -362,92 +475,20 @@ Row {.tabset .tabset-fade}
   )
 
 
-  # output$downloadData <- downloadHandler(
-  #   filename = function() {
-  #     paste("data-", Sys.Date(), ".csv", sep="")
-  #   },
-  #   content = function(file) {
-  #     write_csv(dados(), file)
-  #   }
-  # )
 ```
+
+
+
 
 
 ```{r}
-# downloadLink("downloadData", "Espere carregar a tabela e depois baixe os dados")
-# 
-# 
-# 
-#   output$downloadData <- downloadHandler(
-#     filename = function() {
-#       paste("data-", Sys.Date(), ".csv", sep="")
-#     },
-#     content = function(file) {
-#       write_csv(dados(), file)
-#     }
-#   )
 
-# 
-#  downloadLink("downloadData", "Espere carregar a tabela e depois inicie o Download")
-# 
-# 
-# 
-#   output$downloadData <- downloadHandler(
-#     filename = function() {
-#       paste("data-", Sys.Date(), ".csv", sep="")
-#     },
-#     content = function(file) {
-#       write_csv(dados(), file)
-#     }
-#   )
-
-# arq<- c()
-# 
-# 
-# lista_extratos <- reactive({
-#   
-# arq<- c()
-# 
-# periodo <- (2015:as.integer(format(Sys.Date(), "%Y")))  
-# 
-# 
-# for (i in periodo){
-#   
-# files_json <- 
-#   paste0 ("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/extrato_entregas?id_ente=",cod_ibge()$cod_ibge,"&an_referencia=",toString(i))
-# arq<- c(arq, files_json)
-# }
-# 
-# arq
-# })
-
-# extrato_2 <- reactive({
-#   
-#   extrato <-  c()
-#     
-#   for (i in lista_extratos()) {
-#     extrato <- json2df(lista_extratos()[i] )
-# 
-# }})
-
-# textOutput("extrato_2")
-# 
-# # output$extrato_2 <- renderDT({datatable(extrato_2())})
-# # 
-# # 
-# output$extrato_2 <- renderText({(lista_extratos())})
-
-
-```
-
-
-
-```{r eval=FALSE, include=FALSE}
+# https://stackoverflow.com/questions/30472625/r-shiny-how-to-get-current-year-with-sys-date
 
 arq<- c()
 
 
-lista_extratos <- ({
+lista_extratos <- reactive({
   
 arq<- c()
 
@@ -457,107 +498,80 @@ periodo <- (2015:as.integer(format(Sys.Date(), "%Y")))
 for (i in periodo){
   
 files_json <- 
-  paste0 ("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/extrato_entregas?id_ente=","12","&an_referencia=",toString(i))
+  paste0 ("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/extrato_entregas?id_ente=",cod_ibge()$cod_ibge,"&an_referencia=",toString(i))
 arq<- c(arq, files_json)
 }
 
 arq
 })
 
-zzz <-  for (i  in lista_extratos){ json2df(lista_extratos[i])}
+
+
 
 ```
 
-### reactive
+
+
+### 4) RREO
 
 ```{r}
 
 
-# 
-# DTOutput("dados")
-#  
-# 
-# output$dados <- renderDT({datatable(dados())})
-
-
-dataTableOutput('filtro')
-
-output$filtro <- renderDataTable(url_api(), server = TRUE)
-
-
-# verbatimTextOutput('url')
-# 
-# output$url <- renderPrint({
-#     s = x3_rows_selected
-#     if (length(s)) {
-#       cat('These rows were selected:\n\n')
-#       cat(s, sep = ', ')
-#     }
-# })
 
 ```
 
-### url teste 2
-
-
-```{r}
-actionButton("go_2", "Clique para acessar os dados do SICONFI")
-
- # downloadLink("downloadData", "Download")
-
-
-
-
-dados_2 <- reactive(relatorios(teste_url()$url_api))
-
-# 
-# DTOutput("dados_2")
-#  
-# 
-# output$dados_2 <- renderDT({datatable(teste_url())})
-
-```
-
-
-
-### url
-
-```{r}
-# verbatimTextOutput('url')
-# 
-# output$url <- renderPrint({
-#     s = input$filtro_rows_selected
-#     if (length(s)) {
-#       cat('These rows were selected:\n\n')
-#       cat(s, sep = ', ')
-#     }
-# })
-
-
-
-
-DTOutput("dados_2")
- 
-
-output$dados_2 <-  renderDT({
-                              s = input$filtro_rows_selected
-                              if (length(s)) {
-                              datatable(dados_2())}})
-
-```
-
-### url teste
 
 ```{r}
 
 #  https://yihui.shinyapps.io/DT-rows/
 
-dataTableOutput('url_teste')
+# dataTableOutput('url_teste')
+# 
+# output$url_teste <- renderDataTable(url_api() %>% select(url_api) %>% slice (input$filtro_rows_selected) , server = TRUE)
 
-output$url_teste <- renderDataTable(url_api() %>% select(url_api) %>% slice (input$filtro_rows_selected) , server = TRUE)
+teste_url_rgf <- reactive (url_api() %>% filter ( tipo == "RGF")  )
 
-teste_url <- reactive (url_api() %>% select(url_api) %>% slice (input$filtro_rows_selected))
+
+
+# rgf <- reactive(relatorios(teste_url_rgf()$url_api))
+
+DTOutput("rreo")
+ 
+rreo <- reactive(url_api() %>% filter(startsWith(tipo, "RREO")))
+
+rreo_recente <- reactive(rreo() %>% filter(fechamento == max(as_date(fechamento))))
+# output$rreo <-  renderDT({relatorios(rreo()$url_api) %>% filter( startsWith(conta, "RECEITA CORRENTE LÍQUIDA"), startsWith(coluna, "TOTAL"), endsWith(cod_conta, "ReceitaCorrenteLiquida"))},filter = 'top')
+
+# output$rreo <-  renderDT({relatorios(rgf()$url_api) },filter = 'top')
+
+
+
+ 
+
+output$rreo<-  renderDT({  datatable(relatorios(rreo_recente()$url_api),filter = 'top')%>%
+                  formatRound("valor",
+                      digits = 2,
+                      interval = 3,
+                      mark = ".",
+                      dec.mark = ",")})
 
 ```
 
+### 5) RGF
+
+```{r}
+rgf <- reactive(url_api() %>% filter(startsWith(tipo, "RGF"), poder == "E") )
+
+rgf_recente <- reactive(rgf() %>% filter(fechamento == max(as_date(fechamento))))
+
+DTOutput("rgf")
+ 
+
+output$rgf <-   renderDT({  datatable(relatorios(rgf_recente()$url_api),filter = 'top')%>%
+                  formatRound("valor",
+                      digits = 2,
+                      interval = 3,
+                      mark = ".",
+                      dec.mark = ",")})
+```
 
