@@ -32,10 +32,7 @@ library(plotly)
 library(shiny)
 library(shinyWidgets)
 library(flexdashboard)
-library(ggplot2)
 library(stringr)
-library(plotly)
-library(knitr)
 library(shiny)
 library(lubridate)
 library(tidyverse)
@@ -43,27 +40,6 @@ library(tidyverse)
 ```
         
 
-```{r funcoes}
-# criar funções para apresentar a unidade de medida e converter automaticamente para milhares, milhões, bilhões e trilhões
-escala <- function(x){case_when(
-  abs(x) < 1000 ~ "",
-  abs(x) >= 1000  & abs(x) < 1000000 ~ "K",
-  abs(x) >= 1000000  & abs(x) < 1000000000 ~ "Mi",
-  abs(x) >= 1000000000  & abs(x) < 1000000000000 ~ "Bi",
-  abs(x) >= 1000000000000  & abs(x) < 1000000000000000 ~ "trilhão",
-  TRUE ~ "maior que trilhão"
-)}
- escala <- Vectorize(escala)
-divisor <- function(x){case_when(
-  abs(x) < 1000 ~ x,
-  abs(x) >= 1000  & abs(x) < 1000000 ~ round(x/1000,digits = 2),
-  abs(x) >= 1000000  & abs(x) < 1000000000 ~ round(x/1000000, digits = 2),
-  abs(x) >= 1000000000  & abs(x) < 1000000000000 ~ round (x/1000000000, digits = 2),
-  abs(x) >= 1000000000000  & abs(x) < 1000000000000000 ~ round (x/1000000000000, digits = 2),
-  TRUE ~ x
-)}
- divisor <- Vectorize(divisor)
-```
 
 ```{r}
 '%!in%' <- Negate('%in%')
@@ -194,7 +170,8 @@ extrato <- reactive(extrato <- relatorios (lista_extratos()) %>%
    )) %>% 
    mutate(fechamento = as_date(paste0(exercicio,"-",mes,"-01"))) %>% 
    mutate(dia = days_in_month(fechamento) ) %>% 
-   mutate (fechamento = as_date(paste0(exercicio,"-",mes,"-",dia)))
+   mutate (fechamento = as_date(paste0(exercicio,"-",mes,"-",dia))) %>% 
+   arrange(desc(fechamento))
  
    
 )
@@ -265,7 +242,7 @@ Row {.tabset .tabset-fade}
 
 dataTableOutput('filtro')
 
-output$filtro <- renderDataTable(url_api() %>% arrange(desc(fechamento)) %>% select(-dia,- cod_ibge,-tipo,-poder,-forma_envio, -mes, -tipo_relatorio),filter = 'top', server = TRUE)
+output$filtro <- renderDataTable(url_api() %>% select(-dia,- cod_ibge,-tipo,-poder,-forma_envio, -mes, -tipo_relatorio),filter = 'top', server = TRUE)
 
 
 ```
@@ -275,7 +252,16 @@ output$filtro <- renderDataTable(url_api() %>% arrange(desc(fechamento)) %>% sel
 
 ```{r}
 
-dados_2 <- reactive(relatorios(teste_url()$url_api))
+dados_2 <- reactive(relatorios(teste_url()$url_api) )
+
+# dados_3 <- reactive (dados_2() %>%
+#                   format(dados_2()$valor,
+#                       digits = 2,
+#                       interval = 3,
+#                       mark = ".",
+#                       dec.mark = ",") )
+
+
 
 ```
 
@@ -286,6 +272,15 @@ dados_2 <- reactive(relatorios(teste_url()$url_api))
 ```{r}
 
 DTOutput("dados_2")
+
+
+
+
+# output$dados_2 <-  renderDT({
+#                               s = input$filtro_rows_selected
+#                               if (length(s)) {
+#                               datatable(dados_2(),filter = 'top')}})
+
  
 
 output$dados_2 <-  renderDT({
@@ -326,7 +321,10 @@ teste_url <- reactive (url_api() %>% select(url_api) %>% slice (input$filtro_row
       
       
       paste("data-", Sys.Date(), ".csv", sep="")},
-    content = function(file) {write_csv(dados_2(), file)}
+    content = function(file) {write_csv(dados_2()%>% 
+          mutate (valor = format(valor,
+                                 big.mark = ".",
+          decimal.mark = ",")), file)}
   )
 
 
@@ -366,40 +364,3 @@ arq
 ```
 
 
-
-
-
-```{r}
-
-
-
-```
-
-
-```{r}
-
-#  https://yihui.shinyapps.io/DT-rows/
-
-# dataTableOutput('url_teste')
-# 
-# output$url_teste <- renderDataTable(url_api() %>% select(url_api) %>% slice (input$filtro_rows_selected) , server = TRUE)
-
-teste_url_rgf <- reactive (url_api() %>% filter ( tipo == "RGF")  )
-
-
-
-# rgf <- reactive(relatorios(teste_url_rgf()$url_api))
-
-DTOutput("rreo")
- 
-rreo <- reactive(url_api() %>% filter(startsWith(tipo, "RREO"),fechamento == max(as_date(fechamento))))
-# output$rreo <-  renderDT({relatorios(rreo()$url_api) %>% filter( startsWith(conta, "RECEITA CORRENTE LÍQUIDA"), startsWith(coluna, "TOTAL"), endsWith(cod_conta, "ReceitaCorrenteLiquida"))},filter = 'top')
-
-# output$rreo <-  renderDT({relatorios(rgf()$url_api) },filter = 'top')
-
-
-rgf <- reactive(url_api() %>% filter(startsWith(tipo, "RGF"), poder == "E") )
-
-rgf_recente <- reactive(rgf() %>% filter(fechamento == max(as_date(fechamento))))
-
-```
