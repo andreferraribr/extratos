@@ -19,7 +19,7 @@ options(scipen=999)
 
 
 
-```{r message=FALSE, warning=FALSE, include=FALSE}
+```{r carregar libraries, message=FALSE, warning=FALSE, include=FALSE}
 library(dplyr)
 library(rjson)
 library(stringr)
@@ -36,19 +36,21 @@ library(stringr)
 library(shiny)
 library(lubridate)
 library(tidyverse)
+library(vroom)
+library("microbenchmark")
 # library(janitor)
 ```
         
 
 
-```{r}
+```{r negar %in%}
 '%!in%' <- Negate('%in%')
 ```
 
 
 
 
-```{r include=FALSE}
+```{r funcoes para importar dados da API, include=FALSE}
 # 
 # Criei a função json2df(). A função baixa o arquivo JSON e armazenar os dados em uma data frame.
 # 
@@ -66,75 +68,103 @@ f_json <- fromJSON(f_txt, flatten = FALSE)
 f_df <-as.data.frame(f_json[[1]]) 
 
 }
-```
 
 
-
-
-
-```{r include=FALSE}
 # função para juntar data frames
 
 bind_json2df = function(a){ map(a,json2df)}
-```
 
 
-
-```{r include=FALSE}
 
 # A função relatorios() acessa as urls, baixa os arquivos JSON, transforma os arquivos individuais em data frames, agrupa as data frames em uma única data frame. 
 
 # funcao para gerar df com os dados dos relatórios
 relatorios = function(a){map_dfr(bind_json2df(a), bind_rows)}
-
 ```
-  
-   
 
 
 
 
-
-
-```{r include=FALSE}
+```{r importar arquivo com dados dos entes, include=FALSE}
 # acessar url com dados dos entes
 
 # Utilizei a função json2df para criar uma data frame com os dados dos entes da federação.
-# entes<- json2df("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/entes")
 
-entes <- read_csv("entes.csv") %>%  mutate(esfera_nome =  case_when(
+
+entes<- json2df("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/entes")
+
+entes <- entes %>%  mutate(esfera_nome =  case_when(
+  # diferenciar os municípios do Rio de Janeiro e de São Paulo dos respectivos estados
   esfera == "M" ~ paste0("município de ",ente,"-",uf),
   esfera == "E"  | ente  %in% c("Rio de Janeiro","São Paulo") ~ paste0(ente," (Estado)"),
   TRUE ~ ente))
 
+# alternativamente podemos importar os dados do arquivo csv
+# entes <- vroom("entes.csv") %>%  mutate(esfera_nome =  case_when(
+#   esfera == "M" ~ paste0("município de ",ente,"-",uf),
+#   esfera == "E"  | ente  %in% c("Rio de Janeiro","São Paulo") ~ paste0(ente," (Estado)"),
+#   TRUE ~ ente))
+
+```
+
+    
 
 
+Row {data-height=50}
+-------------------------------------
+
+
+```{r filtro para selecionar o ente}
+selectInput("esfera_nome", "   Selecione o ente:", choices=entes$esfera_nome, selected = "município de Florianópolis-SC")
 
 
 ```
 
 
+```{r obter codigo ibge do ente a partir do filtro}
 
-
-```{r}
-
-# apresentar exemplo da estrutura do extrato
+# obter o código IBGE do ente a partir do filtro esfera_nome
 
 cod_ibge <- reactive(entes %>% filter(esfera_nome == input$esfera_nome) )
 
 
+
 ```
+
+
+```{r gerar lista com todos os extratos do ente desde o ano de 2015}
+# https://stackoverflow.com/questions/30472625/r-shiny-how-to-get-current-year-with-sys-date
+
+arq<- c()
+
+lista_extratos <- reactive({
   
+arq<- c()
+
+# variável para capturar todos os períodos desde 2015 (primeiro ano com dados disponíveis) até ano atual
+periodo <- (2015:as.integer(format(Sys.Date(), "%Y")))  
+
+# fazer loop por todos os períodos para obter a dataframe com todos os relatórios entregues
+for (i in periodo){
+  
+files_json <- 
+  paste0 ("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/extrato_entregas?id_ente=",cod_ibge()$cod_ibge,"&an_referencia=",toString(i))
+arq<- c(arq, files_json)
+}
+
+arq
+})
+```
 
 
-```{r}
 
-urls <- reactive (for (i in periodo){
-  urls <- paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/extrato_entregas?id_ente=",cod_ibge()$cod_ibge,"&an_referencia=",toString(i) )})
+```{r preparar extrato para acessar a API e facilitar a consulta}
 
-# extrato <- reactive(extrato <-  json2df( paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/extrato_entregas?id_ente=",cod_ibge()$cod_ibge,"&an_referencia=2020" )) %>%
-extrato <- reactive(extrato <- relatorios (lista_extratos()) %>%                      
-  mutate (tipo =case_when(
+
+
+extrato_relatorios <- reactive( relatorios (lista_extratos()) %>%                      
+  # criar a variável "tipo" a partir da variável "entregável". A variável "tipo" segue o padrão aceito pela API (por exemplo, transformar "Balanço Anual (DCA)" em "DCA" ) 
+ mutate (tipo =case_when(
  entregavel == "Balanço Anual (DCA)" ~ "DCA",
  entregavel == "MSC Agregada" ~ "MSCC",
  entregavel == "MSC Encerramento" ~ "MSCE",
@@ -142,7 +172,8 @@ extrato <- reactive(extrato <- relatorios (lista_extratos()) %>%
  entregavel == "Relatório de Gestão Fiscal Simplificado" ~ "RGF Simplificado",
  entregavel == "Relatório Resumido de Execução Orçamentária" ~ "RREO",
  entregavel == "Relatório Resumido de Execução Orçamentária Simplificado" ~ "RREO Simplificado"))%>%
-  mutate (poder = case_when(
+ # criar a variável "poder" a ser utilizada na criação do url link da API
+ mutate (poder = case_when(
     str_detect(instituicao,'Assembleia Legislativa') ~ "L",
     str_detect(instituicao,'Câmara de Vereadores') ~ "L",
     str_detect(instituicao,'Senado Federal') ~ "L",
@@ -161,6 +192,7 @@ extrato <- reactive(extrato <- relatorios (lista_extratos()) %>%
     str_detect(instituicao,'Consórcio') ~ "C",
     TRUE ~ "O"
   )) %>% 
+   # criar a variável mês a partir da periodicidade e do período. Por exemplo, periodicidade B e período 2 correspondem ao mês de abril (mês 4)
    mutate (mes = case_when(
      periodicidade == "M" ~ periodo * 1,
      periodicidade == "B" ~ periodo * 2,
@@ -168,54 +200,43 @@ extrato <- reactive(extrato <- relatorios (lista_extratos()) %>%
      periodicidade == "S" ~ periodo * 6,
      periodicidade == "A" ~ periodo * 12,
    )) %>% 
+   # utilizar a variável "mes" para gerar a data de fechmaneto do relatório. Por exemplo, 6 bimestre = 31/12
    mutate(fechamento = as_date(paste0(exercicio,"-",mes,"-01"))) %>% 
    mutate(dia = days_in_month(fechamento) ) %>% 
    mutate (fechamento = as_date(paste0(exercicio,"-",mes,"-",dia))) %>% 
    arrange(desc(fechamento))
- 
    
 )
 
 
+```
+
+
+```{r}
+# selecionar apenas MSCC
+extratos_msc<-reactive( relatorios (lista_extratos()) %>%
+  filter(tipo %in% c("MSCC"))%>%
+  group_by(ente,tipo, cod_ibge, regiao, uf, esfera, poder, exercicio,populacao, ente_uf)%>%
+  # max(periodo) para capturar apenas a matriz mais recente
+  summarise(recente = max(periodo)))
+
+# criar link para API
+url_api_msc<-reactive (extratos_msc()%>%
+  mutate(classe_1 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_patrimonial?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",recente,"&co_tipo_matriz=MSCC&classe_conta=1&id_tv=ending_balance") )%>%
+  mutate(classe_2 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_patrimonial?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",recente,"&co_tipo_matriz=MSCC&classe_conta=2&id_tv=ending_balance" ))%>%
+  mutate(classe_3 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_patrimonial?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",recente,"&co_tipo_matriz=MSCC&classe_conta=3&id_tv=ending_balance") )%>%
+  mutate(classe_4 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_patrimonial?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",recente,"&co_tipo_matriz=MSCC&classe_conta=4&id_tv=ending_balance" ))%>%
+  mutate(classe_5 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_orcamentaria?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",recente,"&co_tipo_matriz=MSCC&classe_conta=5&id_tv=ending_balance" ))%>%
+  mutate(classe_6 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_orcamentaria?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",recente,"&co_tipo_matriz=MSCC&classe_conta=6&id_tv=ending_balance" ))%>%
+  mutate(classe_7 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_controle?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",recente,"&co_tipo_matriz=MSCC&classe_conta=7&id_tv=ending_balance" ))%>%
+  mutate(classe_8 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_controle?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",recente,"&co_tipo_matriz=MSCC&classe_conta=8&id_tv=ending_balance" )))
 
 ```
 
 
 
-
-
 ```{r}
-# criar df extratos_relatorios (excluir MSCC e MSCE)
-extratos_relatorios<-reactive(extratos()%>%
-  filter(tipo != ("MSCC"),tipo != ("MSCE") )%>%
- mutate (url_api =case_when(
- tipo == "DCA" ~ paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/dca?an_exercicio=",exercicio,"&id_ente=",cod_ibge), 
- tipo == "MSCA" ~ "MSCA",
- tipo == "MSCE" ~ "MSCE",
- tipo == "RGF" ~ paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/rgf?an_exercicio=",exercicio,"&in_periodicidade=",periodicidade,"&nr_periodo=",periodo,"&co_tipo_demonstrativo=RGF&co_poder=",poder,"&id_ente=",cod_ibge),
- tipo == "RGF Simplificado" ~ paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/rgf?an_exercicio=",exercicio,"&in_periodicidade=",periodicidade,"&nr_periodo=",periodo,"&co_tipo_demonstrativo=RGF%20Simplificado&co_poder=",poder,"&id_ente=",cod_ibge),
- tipo == "RREO" ~ paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/rreo?an_exercicio=",exercicio,"&nr_periodo=",periodo,"&co_tipo_demonstrativo=RREO&id_ente=",cod_ibge),
- tipo == "RREO Simplificado" ~ paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/rreo?an_exercicio=",exercicio,"&nr_periodo=",periodo,"&co_tipo_demonstrativo=RREO%20Simplificado&id_ente=",cod_ibge)
- 
-) ))
-```
-
-
-
-    
-
-
-Row {data-height=50}
--------------------------------------
-
-
-```{r}
-selectInput("esfera_nome", "   Selecione o ente:", choices=entes$esfera_nome, selected = "município de Florianópolis-SC")
-
-
-
-
-url_api <- reactive(extrato()%>%
+url_api_relatorios <- reactive(extrato_relatorios()%>%
   filter(tipo != ("MSCC"),tipo != ("MSCE") )%>%
  mutate (url_api =case_when(
  tipo == "DCA" ~ paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/dca?an_exercicio=",exercicio,"&id_ente=",cod_ibge), 
@@ -227,7 +248,6 @@ url_api <- reactive(extrato()%>%
  tipo == "RREO Simplificado" ~ paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/rreo?an_exercicio=",exercicio,"&nr_periodo=",periodo,"&co_tipo_demonstrativo=RREO%20Simplificado&id_ente=",cod_ibge)
  
 ) ))  
-
 ```
 
 
@@ -242,11 +262,22 @@ Row {.tabset .tabset-fade}
 
 dataTableOutput('filtro')
 
-output$filtro <- renderDataTable(url_api() %>% select(-dia,- cod_ibge,-tipo,-poder,-forma_envio, -mes, -tipo_relatorio),filter = 'top', server = TRUE)
+output$filtro <- renderDataTable(url_api_relatorios() %>% select(-dia,- cod_ibge,-tipo,-poder,-forma_envio, -mes, -tipo_relatorio),filter = 'top', server = TRUE)
 
 
 ```
 
+
+### 1.1) Clique para selecionar os relatórios desejados
+
+```{r}
+
+dataTableOutput('filtro_msc')
+
+output$filtro_msc <- renderDataTable(url_api_msc() %>% select(-dia,- cod_ibge,-poder,-forma_envio),filter = 'top', server = TRUE)
+
+
+```
 
 
 
@@ -304,7 +335,7 @@ output$dados_2 <-  renderDT({
 # 
 # output$url_teste <- renderDataTable(url_api() %>% select(url_api) %>% slice (input$filtro_rows_selected) , server = TRUE)
 
-teste_url <- reactive (url_api() %>% select(url_api) %>% slice (input$filtro_rows_selected))
+teste_url <- reactive (url_api_relatorios() %>% select(url_api) %>% slice (input$filtro_rows_selected))
 
 ```
 
@@ -326,41 +357,13 @@ teste_url <- reactive (url_api() %>% select(url_api) %>% slice (input$filtro_row
                                  big.mark = ".",
           decimal.mark = ",")), file)}
   )
+  
+  
+  
+  
 
 
 ```
 
-
-
-
-
-```{r}
-
-# https://stackoverflow.com/questions/30472625/r-shiny-how-to-get-current-year-with-sys-date
-
-arq<- c()
-
-
-lista_extratos <- reactive({
-  
-arq<- c()
-
-periodo <- (2015:as.integer(format(Sys.Date(), "%Y")))  
-
-
-for (i in periodo){
-  
-files_json <- 
-  paste0 ("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/extrato_entregas?id_ente=",cod_ibge()$cod_ibge,"&an_referencia=",toString(i))
-arq<- c(arq, files_json)
-}
-
-arq
-})
-
-
-
-
-```
 
 
