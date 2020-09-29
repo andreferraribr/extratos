@@ -213,23 +213,21 @@ extrato_relatorios <- reactive( relatorios (lista_extratos()) %>%
 
 
 ```{r}
-# selecionar apenas MSCC
-extratos_msc<-reactive( relatorios (lista_extratos()) %>%
-  filter(tipo %in% c("MSCC"))%>%
-  group_by(ente,tipo, cod_ibge, regiao, uf, esfera, poder, exercicio,populacao, ente_uf)%>%
-  # max(periodo) para capturar apenas a matriz mais recente
-  summarise(recente = max(periodo)))
+
 
 # criar link para API
-url_api_msc<-reactive (extratos_msc()%>%
-  mutate(classe_1 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_patrimonial?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",recente,"&co_tipo_matriz=MSCC&classe_conta=1&id_tv=ending_balance") )%>%
-  mutate(classe_2 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_patrimonial?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",recente,"&co_tipo_matriz=MSCC&classe_conta=2&id_tv=ending_balance" ))%>%
-  mutate(classe_3 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_patrimonial?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",recente,"&co_tipo_matriz=MSCC&classe_conta=3&id_tv=ending_balance") )%>%
-  mutate(classe_4 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_patrimonial?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",recente,"&co_tipo_matriz=MSCC&classe_conta=4&id_tv=ending_balance" ))%>%
-  mutate(classe_5 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_orcamentaria?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",recente,"&co_tipo_matriz=MSCC&classe_conta=5&id_tv=ending_balance" ))%>%
-  mutate(classe_6 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_orcamentaria?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",recente,"&co_tipo_matriz=MSCC&classe_conta=6&id_tv=ending_balance" ))%>%
-  mutate(classe_7 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_controle?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",recente,"&co_tipo_matriz=MSCC&classe_conta=7&id_tv=ending_balance" ))%>%
-  mutate(classe_8 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_controle?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",recente,"&co_tipo_matriz=MSCC&classe_conta=8&id_tv=ending_balance" )))
+url_api_msc<-reactive (extrato_relatorios()%>%
+  filter(tipo %in% c("MSCC", "MSCE"))%>%
+  mutate(classe_1 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_patrimonial?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",periodo,"&co_tipo_matriz=",tipo,"&classe_conta=1&id_tv=ending_balance") ) %>% 
+  mutate(classe_2 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_patrimonial?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",periodo,"&co_tipo_matriz=",tipo,"&classe_conta=2&id_tv=ending_balance" ))%>%
+  mutate(classe_3 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_patrimonial?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",periodo,"&co_tipo_matriz=",tipo,"&classe_conta=3&id_tv=ending_balance") )%>%
+  mutate(classe_4 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_patrimonial?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",periodo,"&co_tipo_matriz=",tipo,"&classe_conta=4&id_tv=ending_balance" ))%>%
+  mutate(classe_5 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_orcamentaria?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",periodo,"&co_tipo_matriz=",tipo,"&classe_conta=5&id_tv=ending_balance" ))%>%
+  mutate(classe_6 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_orcamentaria?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",periodo,"&co_tipo_matriz=",tipo,"&classe_conta=6&id_tv=ending_balance" ))%>%
+  mutate(classe_7 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_controle?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",periodo,"&co_tipo_matriz=",tipo,"&classe_conta=7&id_tv=ending_balance" ))%>%
+  mutate(classe_8 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_controle?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",periodo,"&co_tipo_matriz=",tipo,"&classe_conta=8&id_tv=ending_balance" )))
+
+
 
 ```
 
@@ -261,37 +259,24 @@ Row {.tabset .tabset-fade}
 ```{r}
 
 dataTableOutput('filtro')
-
+# tabela interativa. O usuário seleciona o relatório desejado ao clicar na tabela.
 output$filtro <- renderDataTable(url_api_relatorios() %>% select(-dia,- cod_ibge,-tipo,-poder,-forma_envio, -mes, -tipo_relatorio),filter = 'top', server = TRUE)
 
 
 ```
 
 
-### 1.1) Clique para selecionar os relatórios desejados
-
-```{r}
-
-dataTableOutput('filtro_msc')
-
-output$filtro_msc <- renderDataTable(url_api_msc() %>% select(-dia,- cod_ibge,-poder,-forma_envio),filter = 'top', server = TRUE)
-
-
-```
-
 
 
 ```{r}
 
-dados_2 <- reactive(relatorios(teste_url()$url_api) )
+#  https://yihui.shinyapps.io/DT-rows/
 
-# dados_3 <- reactive (dados_2() %>%
-#                   format(dados_2()$valor,
-#                       digits = 2,
-#                       interval = 3,
-#                       mark = ".",
-#                       dec.mark = ",") )
+# urls filtradas a partir dos cliques na tabela output$filtro
+url_filtrada <- reactive (url_api_relatorios() %>% select(url_api) %>% slice (input$filtro_rows_selected))
 
+# dados extraídos da API a partir da url_filtrada
+dados_api <- reactive(relatorios(url_filtrada()$url_api) )
 
 
 ```
@@ -302,22 +287,13 @@ dados_2 <- reactive(relatorios(teste_url()$url_api) )
 
 ```{r}
 
-DTOutput("dados_2")
+DTOutput("dados_api")
 
 
-
-
-# output$dados_2 <-  renderDT({
-#                               s = input$filtro_rows_selected
-#                               if (length(s)) {
-#                               datatable(dados_2(),filter = 'top')}})
-
- 
-
-output$dados_2 <-  renderDT({
+output$dados_api <-  renderDT({
                               s = input$filtro_rows_selected
                               if (length(s)) {
-                              datatable(dados_2(),filter = 'top')%>%
+                              datatable(dados_api(),filter = 'top')%>%
                   formatRound("valor",
                       digits = 2,
                       interval = 3,
@@ -326,18 +302,6 @@ output$dados_2 <-  renderDT({
 
 ```
 
-
-```{r}
-
-#  https://yihui.shinyapps.io/DT-rows/
-
-# dataTableOutput('url_teste')
-# 
-# output$url_teste <- renderDataTable(url_api() %>% select(url_api) %>% slice (input$filtro_rows_selected) , server = TRUE)
-
-teste_url <- reactive (url_api_relatorios() %>% select(url_api) %>% slice (input$filtro_rows_selected))
-
-```
 
 ### 3) Faça o download dos relatórios selecionados na etapa 1
 
@@ -352,18 +316,23 @@ teste_url <- reactive (url_api_relatorios() %>% select(url_api) %>% slice (input
       
       
       paste("data-", Sys.Date(), ".csv", sep="")},
-    content = function(file) {write_csv(dados_2()%>% 
+    content = function(file) {write_csv(dados_api()%>% 
           mutate (valor = format(valor,
                                  big.mark = ".",
           decimal.mark = ",")), file)}
   )
   
   
-  
-  
-
-
 ```
 
 
+### 4
+
+```{r}
+
+dataTableOutput('filtro_msc')
+# tabela interativa. O usuário seleciona o relatório desejado ao clicar na tabela.
+output$filtro_msc <- renderDataTable(url_api_msc() %>% select(-dia,- cod_ibge,-tipo,-poder,-forma_envio, -mes, -tipo_relatorio),filter = 'top', server = TRUE)
+
+```
 
