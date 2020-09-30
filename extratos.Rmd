@@ -91,19 +91,19 @@ relatorios = function(a){map_dfr(bind_json2df(a), bind_rows)}
 # Utilizei a função json2df para criar uma data frame com os dados dos entes da federação.
 
 
-entes<- json2df("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/entes")
-
-entes <- entes %>%  mutate(esfera_nome =  case_when(
-  # diferenciar os municípios do Rio de Janeiro e de São Paulo dos respectivos estados
-  esfera == "M" ~ paste0("município de ",ente,"-",uf),
-  esfera == "E"  | ente  %in% c("Rio de Janeiro","São Paulo") ~ paste0(ente," (Estado)"),
-  TRUE ~ ente))
-
-# alternativamente podemos importar os dados do arquivo csv
-# entes <- vroom("entes.csv") %>%  mutate(esfera_nome =  case_when(
+# entes<- json2df("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/entes")
+# 
+# entes <- entes %>%  mutate(esfera_name =  case_when(
+#   # diferenciar os municípios do Rio de Janeiro e de São Paulo dos respectivos estados
 #   esfera == "M" ~ paste0("município de ",ente,"-",uf),
 #   esfera == "E"  | ente  %in% c("Rio de Janeiro","São Paulo") ~ paste0(ente," (Estado)"),
 #   TRUE ~ ente))
+
+# alternativamente podemos importar os dados do arquivo csv
+entes <- vroom("entes.csv") %>%  mutate(esfera_name =  case_when(
+  esfera == "M" ~ paste0("município de ",ente,"-",uf),
+  esfera == "E"  | ente  %in% c("Rio de Janeiro","São Paulo") ~ paste0(ente," (Estado)"),
+  TRUE ~ ente))
 
 ```
 
@@ -115,17 +115,30 @@ Row {data-height=50}
 
 
 ```{r filtro para selecionar o ente}
-selectInput("esfera_nome", "   Selecione o ente:", choices=entes$esfera_nome, selected = "município de Florianópolis-SC")
+# selectInput("esfera_name", "   Selecione o ente:", choices=entes$esfera_name, selected = "município de Florianópolis-SC")
 
+selectInput("esfera_name", "   Selecione o ente:", choices=entes$esfera_name, selected = "município de Florianópolis-SC")
+
+# selectizeInput("esfera_name", "selecione até 10 entes", entes$esfera_name, selected = "município de Florianópolis-SC",
+#         multiple = TRUE, options = list(maxItems = 10))
 
 ```
 
 
 ```{r obter codigo ibge do ente a partir do filtro}
 
-# obter o código IBGE do ente a partir do filtro esfera_nome
+# obter o código IBGE do ente a partir do filtro esfera_name
 
-cod_ibge <- reactive(entes %>% filter(esfera_nome == input$esfera_nome) )
+# cod_ibge <- reactive(entes %>% filter(esfera_name == input$esfera_name) )
+
+cod_ibge <- reactive(entes %>% filter(esfera_name == input$esfera_name) )
+
+
+
+
+
+
+
 
 
 
@@ -162,7 +175,7 @@ arq
 
 
 
-extrato_relatorios <- reactive( relatorios (lista_extratos()) %>%                      
+extrato <- reactive( relatorios (lista_extratos()) %>%                      
   # criar a variável "tipo" a partir da variável "entregável". A variável "tipo" segue o padrão aceito pela API (por exemplo, transformar "Balanço Anual (DCA)" em "DCA" ) 
  mutate (tipo =case_when(
  entregavel == "Balanço Anual (DCA)" ~ "DCA",
@@ -212,31 +225,12 @@ extrato_relatorios <- reactive( relatorios (lista_extratos()) %>%
 ```
 
 
-```{r}
-
-
-# criar link para API
-url_api_msc<-reactive (extrato_relatorios()%>%
-  filter(tipo %in% c("MSCC", "MSCE"))%>%
-  mutate(classe_1 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_patrimonial?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",periodo,"&co_tipo_matriz=",tipo,"&classe_conta=1&id_tv=ending_balance") ) %>% 
-  mutate(classe_2 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_patrimonial?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",periodo,"&co_tipo_matriz=",tipo,"&classe_conta=2&id_tv=ending_balance" ))%>%
-  mutate(classe_3 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_patrimonial?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",periodo,"&co_tipo_matriz=",tipo,"&classe_conta=3&id_tv=ending_balance") )%>%
-  mutate(classe_4 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_patrimonial?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",periodo,"&co_tipo_matriz=",tipo,"&classe_conta=4&id_tv=ending_balance" ))%>%
-  mutate(classe_5 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_orcamentaria?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",periodo,"&co_tipo_matriz=",tipo,"&classe_conta=5&id_tv=ending_balance" ))%>%
-  mutate(classe_6 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_orcamentaria?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",periodo,"&co_tipo_matriz=",tipo,"&classe_conta=6&id_tv=ending_balance" ))%>%
-  mutate(classe_7 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_controle?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",periodo,"&co_tipo_matriz=",tipo,"&classe_conta=7&id_tv=ending_balance" ))%>%
-  mutate(classe_8 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_controle?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",periodo,"&co_tipo_matriz=",tipo,"&classe_conta=8&id_tv=ending_balance" )))
-
-
-
-```
-
 
 
 ```{r}
-url_api_relatorios <- reactive(extrato_relatorios()%>%
+demonstrativos <- reactive(extrato()%>%
   filter(tipo != ("MSCC"),tipo != ("MSCE") )%>%
- mutate (url_api =case_when(
+ mutate (url_demonstrativo =case_when(
  tipo == "DCA" ~ paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/dca?an_exercicio=",exercicio,"&id_ente=",cod_ibge), 
  tipo == "MSCA" ~ "MSCA",
  tipo == "MSCE" ~ "MSCE",
@@ -254,13 +248,13 @@ Row {.tabset .tabset-fade}
 -----------------------------------------------------------------------
 
 
-### 1) Clique para selecionar os relatórios desejados
+### A.1) Clique para selecionar (DCA,RGF e RREO)
 
 ```{r}
 
-dataTableOutput('filtro')
+dataTableOutput('filtro_demonstrativo')
 # tabela interativa. O usuário seleciona o relatório desejado ao clicar na tabela.
-output$filtro <- renderDataTable(url_api_relatorios() %>% select(-dia,- cod_ibge,-tipo,-poder,-forma_envio, -mes, -tipo_relatorio),filter = 'top', server = TRUE)
+output$filtro_demonstrativo <- renderDataTable(demonstrativos() %>% select(-dia,- cod_ibge,-tipo,-poder,-forma_envio, -mes, -tipo_relatorio),filter = 'top', server = TRUE)
 
 
 ```
@@ -272,28 +266,26 @@ output$filtro <- renderDataTable(url_api_relatorios() %>% select(-dia,- cod_ibge
 
 #  https://yihui.shinyapps.io/DT-rows/
 
-# urls filtradas a partir dos cliques na tabela output$filtro
-url_filtrada <- reactive (url_api_relatorios() %>% select(url_api) %>% slice (input$filtro_rows_selected))
+# urls filtradas a partir dos cliques na tabela output$filtro_demonstrativo
+demonstrativo_filtrado <- reactive (demonstrativos() %>% select(url_demonstrativo) %>% slice (input$filtro_demonstrativo_rows_selected))
 
 # dados extraídos da API a partir da url_filtrada
-dados_api <- reactive(relatorios(url_filtrada()$url_api) )
-
+dados_api_demonstrativo <- reactive(relatorios(demonstrativo_filtrado()$url_demonstrativo) )
 
 ```
 
 
-
-### 2) Aguarde até visualizar a prévia dos dados
+### A.2) Aguarde até visualizar a prévia (DCA, RGF, e/ou RREO)
 
 ```{r}
 
-DTOutput("dados_api")
+DTOutput("dados_api_demonstrativo")
 
 
-output$dados_api <-  renderDT({
-                              s = input$filtro_rows_selected
+output$dados_api_demonstrativo <-  renderDT({
+                              s = input$filtro_demonstrativo_rows_selected
                               if (length(s)) {
-                              datatable(dados_api(),filter = 'top')%>%
+                              datatable(dados_api_demonstrativo(),filter = 'top')%>%
                   formatRound("valor",
                       digits = 2,
                       interval = 3,
@@ -302,12 +294,12 @@ output$dados_api <-  renderDT({
 
 ```
 
+### A.3) Faça o download (DCA, RGF, e/ou RREO)
 
-### 3) Faça o download dos relatórios selecionados na etapa 1
 
 ```{r}
 
- downloadLink("downloadData", "Faça o download dos relatórios selecionados na etapa 1")
+ downloadLink("downloadData", "Faça o download dos relatórios selecionados na etapa A.1")
 
 
 
@@ -315,8 +307,8 @@ output$dados_api <-  renderDT({
     filename = function() {
       
       
-      paste("data-", Sys.Date(), ".csv", sep="")},
-    content = function(file) {write_csv(dados_api()%>% 
+      paste("demonstrativo-", Sys.Date(), ".csv", sep="")},
+    content = function(file) {write_csv(dados_api_demonstrativo()%>% 
           mutate (valor = format(valor,
                                  big.mark = ".",
           decimal.mark = ",")), file)}
@@ -326,13 +318,89 @@ output$dados_api <-  renderDT({
 ```
 
 
-### 4
+### B.1) Clique para selecionar as matrizes
+
+
+```{r}
+# criar link para API
+matrizes<-reactive (extrato()%>%
+  filter(tipo %in% c("MSCC", "MSCE"))%>%
+  mutate(classe_1 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_patrimonial?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",periodo,"&co_tipo_matriz=",tipo,"&classe_conta=1&id_tv=ending_balance") ) %>% 
+  mutate(classe_2 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_patrimonial?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",periodo,"&co_tipo_matriz=",tipo,"&classe_conta=2&id_tv=ending_balance" ))%>%
+  mutate(classe_3 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_patrimonial?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",periodo,"&co_tipo_matriz=",tipo,"&classe_conta=3&id_tv=ending_balance") )%>%
+  mutate(classe_4 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_patrimonial?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",periodo,"&co_tipo_matriz=",tipo,"&classe_conta=4&id_tv=ending_balance" ))%>%
+  mutate(classe_5 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_orcamentaria?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",periodo,"&co_tipo_matriz=",tipo,"&classe_conta=5&id_tv=ending_balance" ))%>%
+  mutate(classe_6 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_orcamentaria?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",periodo,"&co_tipo_matriz=",tipo,"&classe_conta=6&id_tv=ending_balance" ))%>%
+  mutate(classe_7 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_controle?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",periodo,"&co_tipo_matriz=",tipo,"&classe_conta=7&id_tv=ending_balance" ))%>%
+  mutate(classe_8 = paste0("http://apidatalake.tesouro.gov.br/ords/siconfi/tt/msc_controle?id_ente=",cod_ibge,"&an_referencia=",exercicio,"&me_referencia=",periodo,"&co_tipo_matriz=",tipo,"&classe_conta=8&id_tv=ending_balance" )))
+
+
+```
+
+
 
 ```{r}
 
-dataTableOutput('filtro_msc')
+dataTableOutput('filtro_matriz')
 # tabela interativa. O usuário seleciona o relatório desejado ao clicar na tabela.
-output$filtro_msc <- renderDataTable(url_api_msc() %>% select(-dia,- cod_ibge,-tipo,-poder,-forma_envio, -mes, -tipo_relatorio),filter = 'top', server = TRUE)
+output$filtro_matriz <- renderDataTable(matrizes() %>% filter (poder == "E")%>% select(exercicio, populacao, entregavel, periodo, periodicidade, data_status, fechamento),filter = 'top', server = TRUE)
+
+```
+
+### B.2) Aguarde até visualizar as matrizes
+
+```{r}
+
+matriz_filtrada <- reactive (matrizes() %>% select(classe_1,classe_2,classe_3,classe_4,classe_5,classe_6,classe_7,classe_8) %>% slice (input$filtro_matriz_rows_selected))
+
+classes_msc <- reactive(matriz_filtrada() %>%
+                            pivot_longer(
+                              c("classe_1","classe_2","classe_3","classe_4","classe_5","classe_6","classe_7","classe_8"),
+                              names_to = "classe",
+                              value_to = "url_api_matriz"))
+
+
+# dados_api_matriz <- reactive(relatorios(c(matriz_filtrada()$classe_1,matriz_filtrada()$classe_2)))
+
+dados_api_matriz <- reactive(relatorios(c(matriz_filtrada()[,])))
+
+# dados_api_matriz <- reactive((relatorios(classes_msc()$url_api_matriz)))
+```
+
+
+```{r}
+DTOutput("dados_api_matriz")
+
+
+output$dados_api_matriz <-  renderDT({
+                              s = input$filtro_matriz_rows_selected
+                              if (length(s)) {
+                              datatable(dados_api_matriz(),filter = 'top')%>%
+                  formatRound("valor",
+                      digits = 2,
+                      interval = 3,
+                      mark = ".",
+                      dec.mark = ",")}})
+```
+
+### B.3) Faça o download das matrizes
+
+```{r}
+
+ downloadLink("download_matriz", "Faça o download dos relatórios selecionados na etapa B.1")
+
+
+
+  output$download_matriz <- downloadHandler(
+    filename = function() {
+      
+      
+      paste("matriz-", Sys.Date(), ".csv", sep="")},
+    content = function(file) {write_csv(dados_api_matriz()%>% 
+          mutate (valor = format(valor,
+                                 big.mark = ".",
+          decimal.mark = ",")), file)}
+  )
 
 ```
 
