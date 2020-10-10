@@ -63,7 +63,7 @@ f_api <-   GET(a)
 
 f_txt <- content(f_api, as="text", encoding="UTF-8")
 
-f_json <- fromJSON(f_txt, flatten = FALSE)
+f_json <- fromJSON(f_txt, flatten = TRUE)
 
 f_df <-as.data.frame(f_json[[1]]) 
 
@@ -117,7 +117,7 @@ Row {data-height=50}
 ```{r filtro para selecionar o ente}
 # selectInput("esfera_name", "   Selecione o ente:", choices=entes$esfera_name, selected = "município de Florianópolis-SC")
 
-selectInput("esfera_name", "   Selecione o ente:", choices=entes$esfera_name, selected = "município de Florianópolis-SC")
+selectInput("esfera_name", "   Selecione o ente:", choices=entes$esfera_name,selected = "município de Florianópolis-SC")
 
 # selectizeInput("esfera_name", "selecione até 10 entes", entes$esfera_name, selected = "município de Florianópolis-SC",
 #         multiple = TRUE, options = list(maxItems = 10))
@@ -175,7 +175,7 @@ arq
 
 
 
-extrato <- reactive( relatorios (lista_extratos()) %>%                      
+extrato <- reactive( json2df(lista_extratos()[6]) %>%                      
   # criar a variável "tipo" a partir da variável "entregável". A variável "tipo" segue o padrão aceito pela API (por exemplo, transformar "Balanço Anual (DCA)" em "DCA" ) 
  mutate (tipo =case_when(
  entregavel == "Balanço Anual (DCA)" ~ "DCA",
@@ -252,13 +252,21 @@ Row {.tabset .tabset-fade}
 
 ```{r}
 
-dataTableOutput('filtro_demonstrativo')
+DT::dataTableOutput("filtro_demonstrativo")
 # tabela interativa. O usuário seleciona o relatório desejado ao clicar na tabela.
-output$filtro_demonstrativo <- renderDataTable(demonstrativos() %>% select(-dia,- cod_ibge,-tipo,-poder,-forma_envio, -mes, -tipo_relatorio),filter = 'top', server = TRUE)
-
+output$filtro_demonstrativo <- DT::renderDataTable(demonstrativos() %>% select(-dia,- cod_ibge,-tipo,-poder,-forma_envio, -mes, -tipo_relatorio),filter = 'top', server = TRUE)
+# output$filtro_demonstrativo <- DT::renderDataTable(output$filtro_demonstrativo(),filter = 'top', server = TRUE)
 
 ```
 
+
+```{r eval=FALSE, include=FALSE}
+
+dataTableOutput("teste")
+
+output$teste <- renderDataTable(                        json2df(lista_extratos()[6]))
+
+```
 
 
 
@@ -341,9 +349,9 @@ matrizes<-reactive (extrato()%>%
 
 ```{r}
 
-dataTableOutput('filtro_matriz')
+DT::dataTableOutput('filtro_matriz')
 # tabela interativa. O usuário seleciona o relatório desejado ao clicar na tabela.
-output$filtro_matriz <- renderDataTable(matrizes() %>% filter (poder == "E")%>% select(exercicio, populacao, entregavel, periodo, periodicidade, data_status, fechamento),filter = 'top', server = TRUE)
+output$filtro_matriz <- DT::renderDataTable(matrizes() %>% filter (poder == "E")%>% select(exercicio, populacao, entregavel, periodo, periodicidade, data_status, fechamento),filter = 'top', server = TRUE)
 
 ```
 
@@ -362,7 +370,9 @@ classes_msc <- reactive(matriz_filtrada() %>%
 
 # dados_api_matriz <- reactive(relatorios(c(matriz_filtrada()$classe_1,matriz_filtrada()$classe_2)))
 
-dados_api_matriz <- reactive(relatorios(c(matriz_filtrada()[,])))
+# dados_api_matriz <- reactive(relatorios(c(matriz_filtrada()[,])))
+
+dados_api_matriz <-reactive(relatorios(map_dfr(matriz_filtrada()[1:1], cbind.data.frame)))
 
 # dados_api_matriz <- reactive((relatorios(classes_msc()$url_api_matriz)))
 ```
